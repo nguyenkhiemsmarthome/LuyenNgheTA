@@ -48,7 +48,7 @@
     <div id="sentence" class="sentence"></div>
   </div>
 
-  <!-- ĐỒNG HỒ/ TỐC ĐỘ / GIỌNG -->
+  <!-- CẤU HÌNH ĐỌC -->
   <div class="card">
     <div class="grid">
       <div>
@@ -94,8 +94,8 @@
   </div>
 
 <script>
-  // 🔗 THAY BẰNG URL WEB APP CỦA BẠN
-  const API_URL = "https://script.google.com/macros/s/AKfycbwxdjMI0U-kAHzm_m7LicN-2vRH3cyY-S10yRwl8_zVsamK6evENBn1pn9nTe8aJMUytQ/exec";
+  // 🔗 ĐÃ ĐIỀN ĐÚNG URL WEB APP CỦA BẠN
+  const API_URL = "https://script.google.com/macros/s/AKfycbz_U1pX7hEks9eD9u8i-wVpL3-E7m_8aG9O5_v9n1k/exec";
 
   let vocabList = [];
   let currentWord = null;
@@ -106,17 +106,23 @@
 
   // Lấy dữ liệu từ Google Sheets API
   async function loadData() {
-
     try {
-      document.getElementById('repeatStatus').textContent = "Đang tải dữ liệu...";
-      const res = await fetch(API_URL);
-      vocabList = await res.json();
+      document.getElementById('repeatStatus').textContent = "Đang kết nối Google Sheets...";
       
+      // Xử lý chuyển hướng tự động 302 từ Google Script
+      const res = await fetch(API_URL, { method: 'GET', redirect: 'follow' });
+      
+      if (!res.ok) {
+        throw new Error("HTTP error! Status: " + res.status);
+      }
+      
+      vocabList = await res.json();
       const select = document.getElementById('wordSelect');
       select.innerHTML = '';
       
-      if (vocabList.length === 0) {
-        select.innerHTML = '<option>Không có dữ liệu</option>';
+      if (!Array.isArray(vocabList) || vocabList.length === 0) {
+        select.innerHTML = '<option>Không có dữ liệu trong bảng</option>';
+        document.getElementById('repeatStatus').textContent = "Bảng tính trống.";
         return;
       }
 
@@ -128,9 +134,11 @@
       });
 
       selectWord(0);
-      document.getElementById('repeatStatus').textContent = "";
+      document.getElementById('repeatStatus').textContent = "Đã tải xong dữ liệu!";
     } catch (e) {
-      alert("Lỗi tải dữ liệu từ Google Sheets!");
+      console.error("Lỗi kết nối:", e);
+      alert("Lỗi tải dữ liệu: " + e.message + "\nHãy đảm bảo bạn đã mở quyền 'Bất kỳ ai' (Anyone) cho Web App.");
+      document.getElementById('repeatStatus').textContent = "Lỗi kết nối.";
     }
   }
 
@@ -147,7 +155,7 @@
     startRepeat(currentWord.word, 3);
   }
 
-  // Khởi tạo giọng đọc
+  // Cấu hình giọng đọc
   function loadVoices() {
     voices = window.speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith('en'));
     const select = document.getElementById('voice');
@@ -205,7 +213,7 @@
   // Nhận diện giọng nói
   function initSpeech() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return alert("Trình duyệt không hỗ trợ nhận diện giọng nói.");
+    if (!SR) return;
     recognition = new SR();
     recognition.lang = 'en-US';
 
@@ -221,6 +229,10 @@
 
     recognition.onend = () => {
       document.getElementById('recordStatus').textContent = "Đã nhận xong.";
+    };
+
+    recognition.onerror = (e) => {
+      document.getElementById('recordStatus').textContent = "⚠️ Lỗi nhận diện: " + e.error;
     };
   }
 
@@ -239,7 +251,7 @@
     document.getElementById('comparison').textContent = score >= 80 ? "🎉 Phát âm rất tốt!" : "🎧 Hãy nghe mẫu và thử lại.";
   }
 
-  // Lắng nghe sự kiện
+  // Gắn sự kiện nút bấm
   document.getElementById('wordSelect').addEventListener('change', e => selectWord(e.target.value));
   document.getElementById('refreshBtn').addEventListener('click', loadData);
   document.getElementById('word').addEventListener('click', () => startRepeat(currentWord.word, 3));
@@ -250,10 +262,14 @@
   document.getElementById('btnStop').addEventListener('click', stop);
   
   document.getElementById('recordBtn').addEventListener('click', () => {
-    if (recognition) recognition.start();
+    if (recognition) {
+      try { recognition.start(); } catch(err) { console.log(err); }
+    } else {
+      alert("Trình duyệt không hỗ trợ micro/nhận diện giọng nói.");
+    }
   });
 
-  // Đăng ký Service Worker cho PWA
+  // Đăng ký Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
