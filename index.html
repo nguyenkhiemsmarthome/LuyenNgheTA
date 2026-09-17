@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Luyện Tiếng Anh PWA</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a73e8">
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; color: #222; }
+    .header { font-size: 20px; font-weight: bold; color: #1a73e8; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .label { font-size: 11px; color: #777; font-weight: bold; margin-bottom: 6px; text-transform: uppercase; }
+    .word-select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; font-weight: bold; background: white; margin-bottom: 12px; }
+    .word { font-size: 26px; font-weight: bold; color: #1a73e8; cursor: pointer; word-break: break-word; }
+    .meaning { font-size: 15px; color: #555; margin-top: 8px; }
+    .sentence { font-size: 14px; color: #333; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; line-height: 1.5; }
+    select, button { width: 100%; padding: 12px; border-radius: 10px; border: none; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    button.primary { background: #1a73e8; color: white; }
+    button.secondary { background: #e8f0fe; color: #1a73e8; }
+    button.danger { background: #ea4335; color: white; }
+    button.stop { background: #5f6368; color: white; }
+    .status-bar { font-size: 12px; color: #666; text-align: center; margin-top: 8px; min-height: 16px; }
+    .user-text { background: #f1f3f4; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 14px; min-height: 40px; }
+    .score-box { text-align: center; margin-top: 12px; display: none; }
+    .score { font-size: 32px; font-weight: bold; color: #34a853; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <span>🎧 Luyện Tiếng Anh</span>
+    <button id="refreshBtn" style="width: auto; padding: 6px 12px; font-size: 12px;" class="secondary">🔄 Nạp lại</button>
+  </div>
+
+  <!-- BỘ CHỌN TỪ VỰNG -->
+  <select id="wordSelect" class="word-select">
+    <option value="">Đang tải danh sách từ...</option>
+  </select>
+
+  <!-- THẺ TỪ VỰNG -->
+  <div class="card">
+    <div class="label">TỪ VỰNG (Nhấp để nghe 3 lần)</div>
+    <div id="word" class="word">---</div>
+    <div id="meaning" class="meaning"></div>
+    <div id="sentence" class="sentence"></div>
+  </div>
+
+  <!-- ĐỒNG HỒ/ TỐC ĐỘ / GIỌNG -->
+  <div class="card">
+    <div class="grid">
+      <div>
+        <div class="label">🎙️ Giọng đọc</div>
+        <select id="voice"></select>
+      </div>
+      <div>
+        <div class="label">🐢 Tốc độ</div>
+        <select id="speed">
+          <option value="0.7">0.7x (Chậm)</option>
+          <option value="0.85">0.85x</option>
+          <option value="1" selected>1.0x (Chuẩn)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- BỘ NÚT NGHE -->
+  <div class="card">
+    <div class="label">🔊 LUYỆN NGHE</div>
+    <div class="grid">
+      <button id="btnWord3" class="secondary">🔊 Nghe từ (3x)</button>
+      <button id="btnWord5" class="secondary">🔁 Nghe từ (5x)</button>
+    </div>
+    <div class="grid">
+      <button id="btnSentence1" class="primary">🗣️ Nghe câu (1x)</button>
+      <button id="btnSentence3" class="primary">🔁 Nghe câu (3x)</button>
+    </div>
+    <button id="btnStop" class="stop" style="margin-top: 8px;">⏹ Dừng</button>
+    <div id="repeatStatus" class="status-bar"></div>
+  </div>
+
+  <!-- LUYỆN NÓI -->
+  <div class="card">
+    <div class="label">🎤 LUYỆN NÓI</div>
+    <button id="recordBtn" class="danger">🎤 Bắt đầu nói</button>
+    <div id="recordStatus" class="status-bar">Nhấn nút rồi đọc câu mẫu</div>
+    <div id="userText" class="user-text">Bạn nói sẽ xuất hiện ở đây...</div>
+    <div id="scoreBox" class="score-box">
+      <div id="score" class="score">0%</div>
+      <div id="comparison" style="font-size: 13px; margin-top: 6px;"></div>
+    </div>
+  </div>
+
+<script>
+  // 🔗 THAY BẰNG URL WEB APP CỦA BẠN
+  const API_URL = "https://script.google.com/macros/s/https://script.google.com/macros/s/AKfycbzeTQRnKl6VrXKQInKl2qTwP3BERH0blvcaJeTZvUtyDPz2QoyW0fdpnLh-aIG-rkqRfA/exec";
+
+  let vocabList = [];
+  let currentWord = null;
+  let voices = [];
+  let isRepeating = false;
+  let currentSessionId = 0;
+  let recognition = null;
+
+  // Lấy dữ liệu từ Google Sheets API
+  async function loadData() {
+
+    try {
+      document.getElementById('repeatStatus').textContent = "Đang tải dữ liệu...";
+      const res = await fetch(API_URL);
+      vocabList = await res.json();
+      
+      const select = document.getElementById('wordSelect');
+      select.innerHTML = '';
+      
+      if (vocabList.length === 0) {
+        select.innerHTML = '<option>Không có dữ liệu</option>';
+        return;
+      }
+
+      vocabList.forEach((item, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.textContent = `${item.word} - ${item.meaning}`;
+        select.appendChild(opt);
+      });
+
+      selectWord(0);
+      document.getElementById('repeatStatus').textContent = "";
+    } catch (e) {
+      alert("Lỗi tải dữ liệu từ Google Sheets!");
+    }
+  }
+
+  function selectWord(index) {
+    if (!vocabList[index]) return;
+    currentWord = vocabList[index];
+    document.getElementById('word').textContent = currentWord.word;
+    document.getElementById('meaning').textContent = currentWord.meaning ? '🇻🇳 ' + currentWord.meaning : '';
+    document.getElementById('sentence').textContent = currentWord.sentence ? '📖 ' + currentWord.sentence : '';
+    document.getElementById('scoreBox').style.display = 'none';
+    document.getElementById('userText').textContent = 'Bạn nói sẽ xuất hiện ở đây...';
+    
+    // Đọc tự động 3 lần khi chuyển từ
+    startRepeat(currentWord.word, 3);
+  }
+
+  // Khởi tạo giọng đọc
+  function loadVoices() {
+    voices = window.speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith('en'));
+    const select = document.getElementById('voice');
+    select.innerHTML = '';
+    
+    voices.forEach((v, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = `${v.name.includes('Natural') ? '🌟 ' : ''}${v.name}`;
+      select.appendChild(opt);
+    });
+  }
+
+  function speak(text, onEnd) {
+    window.speechSynthesis.cancel();
+    if (!text) return;
+    const ut = new SpeechSynthesisUtterance(text);
+    const vIndex = document.getElementById('voice').value;
+    if (voices[vIndex]) ut.voice = voices[vIndex];
+    ut.rate = parseFloat(document.getElementById('speed').value);
+    ut.onend = onEnd;
+    ut.onerror = onEnd;
+    window.speechSynthesis.speak(ut);
+  }
+
+  function startRepeat(text, times) {
+    window.speechSynthesis.cancel();
+    isRepeating = true;
+    currentSessionId++;
+    let count = 0;
+    const sid = currentSessionId;
+
+    function next() {
+      if (!isRepeating || sid !== currentSessionId) return;
+      if (count >= times) {
+        document.getElementById('repeatStatus').textContent = `✅ Hoàn thành ${times} lần`;
+        return;
+      }
+      count++;
+      document.getElementById('repeatStatus').textContent = `🔊 Đang đọc ${count}/${times}`;
+      speak(text, () => {
+        if (isRepeating && sid === currentSessionId) setTimeout(next, 300);
+      });
+    }
+    next();
+  }
+
+  function stop() {
+    isRepeating = false;
+    currentSessionId++;
+    window.speechSynthesis.cancel();
+    document.getElementById('repeatStatus').textContent = "⏹ Đã dừng";
+  }
+
+  // Nhận diện giọng nói
+  function initSpeech() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return alert("Trình duyệt không hỗ trợ nhận diện giọng nói.");
+    recognition = new SR();
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      document.getElementById('recordStatus').textContent = "🎤 Đang nghe...";
+    };
+
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      document.getElementById('userText').textContent = text;
+      compare(currentWord.sentence, text);
+    };
+
+    recognition.onend = () => {
+      document.getElementById('recordStatus').textContent = "Đã nhận xong.";
+    };
+  }
+
+  function compare(target, spoken) {
+    if (!target || !spoken) return;
+    const clean = t => t.toLowerCase().replace(/[.,!?;:]/g, '').trim().split(/\s+/);
+    const tWords = clean(target);
+    const sWords = clean(spoken);
+    
+    let match = 0;
+    tWords.forEach(w => { if (sWords.includes(w)) match++; });
+    const score = Math.round((match / tWords.length) * 100);
+
+    document.getElementById('scoreBox').style.display = 'block';
+    document.getElementById('score').textContent = score + '%';
+    document.getElementById('comparison').textContent = score >= 80 ? "🎉 Phát âm rất tốt!" : "🎧 Hãy nghe mẫu và thử lại.";
+  }
+
+  // Lắng nghe sự kiện
+  document.getElementById('wordSelect').addEventListener('change', e => selectWord(e.target.value));
+  document.getElementById('refreshBtn').addEventListener('click', loadData);
+  document.getElementById('word').addEventListener('click', () => startRepeat(currentWord.word, 3));
+  document.getElementById('btnWord3').addEventListener('click', () => startRepeat(currentWord.word, 3));
+  document.getElementById('btnWord5').addEventListener('click', () => startRepeat(currentWord.word, 5));
+  document.getElementById('btnSentence1').addEventListener('click', () => startRepeat(currentWord.sentence, 1));
+  document.getElementById('btnSentence3').addEventListener('click', () => startRepeat(currentWord.sentence, 3));
+  document.getElementById('btnStop').addEventListener('click', stop);
+  
+  document.getElementById('recordBtn').addEventListener('click', () => {
+    if (recognition) recognition.start();
+  });
+
+  // Đăng ký Service Worker cho PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+  initSpeech();
+  loadData();
+</script>
+</body>
+</html>
