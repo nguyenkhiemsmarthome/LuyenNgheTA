@@ -26,6 +26,13 @@
     .user-text { background: #f1f3f4; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 14px; min-height: 40px; }
     .score-box { text-align: center; margin-top: 12px; display: none; }
     .score { font-size: 32px; font-weight: bold; color: #34a853; }
+    
+    .table-container { max-height: 220px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #eee; }
+    th { background: #f1f3f4; position: sticky; top: 0; font-weight: bold; color: #444; z-index: 1; }
+    tr:hover { background: #f8f9fa; cursor: pointer; }
+    tr.active-row { background: #e8f0fe !important; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -35,12 +42,10 @@
     <button id="refreshBtn" style="width: auto; padding: 6px 12px; font-size: 12px;" class="secondary">🔄 Nạp lại</button>
   </div>
 
-  <!-- BỘ CHỌN TỪ VỰNG -->
   <select id="wordSelect" class="word-select">
     <option value="">Đang tải danh sách từ...</option>
   </select>
 
-  <!-- THẺ TỪ VỰNG -->
   <div class="card">
     <div class="label">TỪ VỰNG (Nhấp để nghe 3 lần)</div>
     <div id="word" class="word">---</div>
@@ -48,7 +53,25 @@
     <div id="sentence" class="sentence"></div>
   </div>
 
-  <!-- CẤU HÌNH ĐỌC -->
+  <div class="card">
+    <div class="label">📋 BẢNG TỪ VỰNG TỪ SHEET (Bấm vào hàng để chọn)</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px;">STT</th>
+            <th>Từ vựng</th>
+            <th>Nghĩa</th>
+            <th>Câu ví dụ</th>
+          </tr>
+        </thead>
+        <tbody id="vocabTableBody">
+          <tr><td colspan="4" style="text-align:center; color:#888;">Đang tải danh sách...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="card">
     <div class="grid">
       <div>
@@ -66,7 +89,6 @@
     </div>
   </div>
 
-  <!-- BỘ NÚT NGHE -->
   <div class="card">
     <div class="label">🔊 LUYỆN NGHE</div>
     <div class="grid">
@@ -81,7 +103,6 @@
     <div id="repeatStatus" class="status-bar"></div>
   </div>
 
-  <!-- LUYỆN NÓI -->
   <div class="card">
     <div class="label">🎤 LUYỆN NÓI</div>
     <button id="recordBtn" class="danger">🎤 Bắt đầu nói</button>
@@ -94,8 +115,7 @@
   </div>
 
 <script>
-  // 🔗 ĐÃ ĐIỀN ĐÚNG URL WEB APP CỦA BẠN
-  const API_URL = "https://script.google.com/macros/s/AKfycbz_U1pX7hEks9eD9u8i-wVpL3-E7m_8aG9O5_v9n1k/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbwxdjMI0U-kAHzm_m7LicN-2vRH3cyY-S10yRwl8_zVsamK6evENBn1pn9nTe8aJMUytQ/exec";
 
   let vocabList = [];
   let currentWord = null;
@@ -104,17 +124,12 @@
   let currentSessionId = 0;
   let recognition = null;
 
-  // Lấy dữ liệu từ Google Sheets API
   async function loadData() {
     try {
       document.getElementById('repeatStatus').textContent = "Đang kết nối Google Sheets...";
       
-      // Xử lý chuyển hướng tự động 302 từ Google Script
       const res = await fetch(API_URL, { method: 'GET', redirect: 'follow' });
-      
-      if (!res.ok) {
-        throw new Error("HTTP error! Status: " + res.status);
-      }
+      if (!res.ok) throw new Error("HTTP error! Status: " + res.status);
       
       vocabList = await res.json();
       const select = document.getElementById('wordSelect');
@@ -122,6 +137,7 @@
       
       if (!Array.isArray(vocabList) || vocabList.length === 0) {
         select.innerHTML = '<option>Không có dữ liệu trong bảng</option>';
+        document.getElementById('vocabTableBody').innerHTML = '<tr><td colspan="4" style="text-align:center;">Bảng tính trống</td></tr>';
         document.getElementById('repeatStatus').textContent = "Bảng tính trống.";
         return;
       }
@@ -133,6 +149,7 @@
         select.appendChild(opt);
       });
 
+      renderTable();
       selectWord(0);
       document.getElementById('repeatStatus').textContent = "Đã tải xong dữ liệu!";
     } catch (e) {
@@ -140,6 +157,29 @@
       alert("Lỗi tải dữ liệu: " + e.message + "\nHãy đảm bảo bạn đã mở quyền 'Bất kỳ ai' (Anyone) cho Web App.");
       document.getElementById('repeatStatus').textContent = "Lỗi kết nối.";
     }
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('vocabTableBody');
+    tbody.innerHTML = '';
+
+    vocabList.forEach((item, index) => {
+      const tr = document.createElement('tr');
+      tr.id = `row-${index}`;
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td style="color:#1a73e8; font-weight:bold;">${item.word}</td>
+        <td>${item.meaning || ''}</td>
+        <td style="font-size:12px; color:#555;">${item.sentence || ''}</td>
+      `;
+      
+      tr.addEventListener('click', () => {
+        document.getElementById('wordSelect').value = index;
+        selectWord(index);
+      });
+
+      tbody.appendChild(tr);
+    });
   }
 
   function selectWord(index) {
@@ -151,11 +191,16 @@
     document.getElementById('scoreBox').style.display = 'none';
     document.getElementById('userText').textContent = 'Bạn nói sẽ xuất hiện ở đây...';
     
-    // Đọc tự động 3 lần khi chuyển từ
+    document.querySelectorAll('#vocabTableBody tr').forEach(r => r.classList.remove('active-row'));
+    const activeRow = document.getElementById(`row-${index}`);
+    if (activeRow) {
+      activeRow.classList.add('active-row');
+      activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     startRepeat(currentWord.word, 3);
   }
 
-  // Cấu hình giọng đọc
   function loadVoices() {
     voices = window.speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith('en'));
     const select = document.getElementById('voice');
@@ -210,7 +255,6 @@
     document.getElementById('repeatStatus').textContent = "⏹ Đã dừng";
   }
 
-  // Nhận diện giọng nói
   function initSpeech() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
@@ -251,7 +295,6 @@
     document.getElementById('comparison').textContent = score >= 80 ? "🎉 Phát âm rất tốt!" : "🎧 Hãy nghe mẫu và thử lại.";
   }
 
-  // Gắn sự kiện nút bấm
   document.getElementById('wordSelect').addEventListener('change', e => selectWord(e.target.value));
   document.getElementById('refreshBtn').addEventListener('click', loadData);
   document.getElementById('word').addEventListener('click', () => startRepeat(currentWord.word, 3));
@@ -269,7 +312,6 @@
     }
   });
 
-  // Đăng ký Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
